@@ -40,17 +40,20 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.hive.service.HiveInterface;
 
 /**
  * Data independed base class which implements the common part of
  * all hive resultsets.
  */
 public abstract class HiveBaseResultSet implements ResultSet{
+  protected HiveInterface client;
   protected SQLWarning warningChain = null;
   protected boolean wasNull = false;
   protected List<Object> row;
   protected List<String> columnNames;
   protected List<String> columnTypes;
+  protected Statement statement = null;
 
   public boolean absolute(int row) throws SQLException {
     throw new SQLException("Method not supported");
@@ -75,7 +78,7 @@ public abstract class HiveBaseResultSet implements ResultSet{
   public int findColumn(String columnName) throws SQLException {
     int columnIndex = columnNames.indexOf(columnName);
     if (columnIndex==-1) {
-      throw new SQLException();
+      throw new SQLException("Column not found: " +columnName);
     } else {
       return ++columnIndex;
     }
@@ -135,10 +138,10 @@ public abstract class HiveBaseResultSet implements ResultSet{
 
   public boolean getBoolean(int columnIndex) throws SQLException {
     Object obj = getObject(columnIndex);
-    if (Boolean.class.isInstance(obj)) {
-      return (Boolean) obj;
-    } else if (obj == null) {
+    if (obj == null) {
       return false;
+    } else if (Boolean.class.isInstance(obj)) {
+      return (Boolean) obj;
     } else if (Number.class.isInstance(obj)) {
       return ((Number) obj).intValue() != 0;
     } else if (String.class.isInstance(obj)) {
@@ -153,10 +156,11 @@ public abstract class HiveBaseResultSet implements ResultSet{
 
   public byte getByte(int columnIndex) throws SQLException {
     Object obj = getObject(columnIndex);
+    if(obj == null) {
+      return 0;
+    }
     if (Number.class.isInstance(obj)) {
       return ((Number) obj).byteValue();
-    } else if (obj == null) {
-      return 0;
     }
     throw new SQLException("Cannot convert column " + columnIndex + " to byte");
   }
@@ -925,8 +929,13 @@ public abstract class HiveBaseResultSet implements ResultSet{
     warningChain = null;
   }
 
+  /**
+   * Closes the result set.  This method nulls properties this object depends on to provide a result set.
+   *
+   * @throws
+   */
   public void close() throws SQLException {
-    throw new SQLException("Method not supported");
+    client = null;
   }
 
   public boolean wasNull() throws SQLException {

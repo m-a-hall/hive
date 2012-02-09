@@ -36,10 +36,13 @@ import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Map;
+
+import org.apache.hadoop.hive.service.HiveInterface;
 
 /**
  * HiveCallableStatement.
@@ -1378,7 +1381,7 @@ public class HiveCallableStatement implements java.sql.CallableStatement {
 
   public ResultSet executeQuery() throws SQLException {
     // TODO Auto-generated method stub
-    return new HiveQueryResultSet(null);
+    return new HiveQueryResultSet((HiveInterface)null, (Statement)null);
   }
 
   /*

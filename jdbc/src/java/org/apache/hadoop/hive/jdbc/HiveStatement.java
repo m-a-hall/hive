@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.service.HiveServerException;
  *
  */
 public class HiveStatement implements java.sql.Statement {
+  private JdbcSessionState session;
   private HiveInterface client;
   private int fetchSize = 50;
 
@@ -61,7 +62,8 @@ public class HiveStatement implements java.sql.Statement {
   /**
    *
    */
-  public HiveStatement(HiveInterface client) {
+  public HiveStatement(JdbcSessionState session, HiveInterface client) {
+    this.session = session;
     this.client = client;
   }
 
@@ -190,7 +192,7 @@ public class HiveStatement implements java.sql.Statement {
     } catch (Exception ex) {
       throw new SQLException(ex.toString(), "08S01");
     }
-    resultSet = new HiveQueryResultSet(client, maxRows);
+    resultSet = new HiveQueryResultSet(client, this, maxRows);
     resultSet.setFetchSize(fetchSize);
     return resultSet;
   }
