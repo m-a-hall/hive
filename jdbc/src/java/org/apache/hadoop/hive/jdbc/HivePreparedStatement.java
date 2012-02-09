@@ -192,9 +192,9 @@ public class HivePreparedStatement implements PreparedStatement, HivePreparedSta
       resultSet = null;
       client.execute(sql);
     } catch (HiveServerException e) {
-      throw new SQLException(e.getMessage(), e.getSQLState(), e.getErrorCode());
+      throw new SQLException(e.getMessage(), e.getSQLState(), e.getErrorCode(), e);
     } catch (Exception ex) {
-      throw new SQLException(ex.toString(), "08S01");
+      throw new SQLException(ex.toString(), "08S01", ex);
     }
     resultSet = new HiveQueryResultSet(client, this, maxRows);
     return resultSet;
@@ -647,38 +647,29 @@ public class HivePreparedStatement implements PreparedStatement, HivePreparedSta
       Integer scale) throws SQLException {
     
     int sqlType = targetSqlType == null ? java.sql.Types.OTHER : targetSqlType;
-    int typeMatches = 0;
     
     if(x instanceof Short) {
-      typeMatches++;
       sqlType = java.sql.Types.TINYINT;
     }
     if(x instanceof Integer) {
-      typeMatches++;
       sqlType = java.sql.Types.INTEGER;
     }
     if(x instanceof Long) {
-      typeMatches++;
       sqlType = java.sql.Types.INTEGER;
     }
     if(x instanceof Double) {
-      typeMatches++;
       sqlType = java.sql.Types.DOUBLE;
     }
     if(x instanceof Float) {
-      typeMatches++;
       sqlType = java.sql.Types.FLOAT;
     }
     if (x instanceof Boolean) {
-      typeMatches++;
       sqlType = java.sql.Types.BOOLEAN;
     }
     if (x instanceof Byte) {
-      typeMatches++;
       sqlType = java.sql.Types.SMALLINT;
     }
     if(x instanceof String) {
-      typeMatches++;
       if(scale != null) {
         sqlType = java.sql.Types.CHAR;
       } else {
@@ -1299,18 +1290,7 @@ public class HivePreparedStatement implements PreparedStatement, HivePreparedSta
   public <T> T unwrap(Class<T> iface) throws SQLException {
     // TODO Auto-generated method stub
     throw new SQLException("Method not supported");
-  } 
-   
-  /*  private void parseParameters() {
-    String sqlToHack = sql; 
-    parameters = new ArrayList<HiveParameterValue>();
-    int parameterPos = sqlToHack.indexOf('?');
-    while (parameterPos > 0) {
-      parameters.add(new HiveParameterValue());
-      sqlToHack = sqlToHack.substring(parameterPos+1);
-      parameterPos = sqlToHack.indexOf('?');
-    }
-    } */
+  }    
 
   private void parseParameters() {
     String sqlToHack = sql;    
@@ -1372,23 +1352,27 @@ public class HivePreparedStatement implements PreparedStatement, HivePreparedSta
   public String constructSQL() 
         throws SQLException {
 
-      StringBuilder sqlToConstruct = new StringBuilder();
-      String sqlToHack = sql;
-      int parameterPosition = 0;
+    StringBuilder sqlToConstruct = new StringBuilder();
+    String sqlToHack = sql;
+    int parameterPosition = 0;
+    boolean unsetParams = false;
             
-      for(HiveParameterValue hiveParameterValue: parameters) {
+    for(HiveParameterValue hiveParameterValue: parameters) {
         
-        //  get get the position of the next place holder
-        //        parameterPosition = sqlToHack.indexOf("?");
-        parameterPosition = nextValidParameterPosition(sqlToHack);
+      //  get get the position of the next place holder
+      //        parameterPosition = sqlToHack.indexOf("?");
+      parameterPosition = nextValidParameterPosition(sqlToHack);
 
-        //  if we have no more place holders than parameters- which should not happen
-        if (parameterPosition <=0 ) {
-          throw new SQLException("More parameters have been set than have placeholders.");
-        }
+      //  if we have more parameters than place holders - which should not happen
+      if (parameterPosition <=0 ) {
+        throw new SQLException("More parameters have been set than have placeholders.");
+      }
         
-        //  append the characters leading up to the place holder to the sql we are constructing
-        //        sqlToConstruct.append(sqlToHack.substring(0, parameterPosition-1));        
+      //  append the characters leading up to the place holder to the sql we are constructing
+      //        sqlToConstruct.append(sqlToHack.substring(0, parameterPosition-1));
+
+      // unset parameters will have null java type
+      if (hiveParameterValue.getjavaType() != null) {
         sqlToConstruct.append(sqlToHack.substring(0, parameterPosition));        
         
         //  if we need encolusures..
@@ -1404,17 +1388,33 @@ public class HivePreparedStatement implements PreparedStatement, HivePreparedSta
           //  just append the value to the sql 
           sqlToConstruct.append(hiveParameterValue.getValueAsString());
         }
+      } else {
+        unsetParams = true;
+        break;
+      }
         
-        //  now hack off the before the found place holder so 
-        //  we can look for the next one.
-        sqlToHack = sqlToHack.substring(parameterPosition+1);
+      //  now hack off the before the found place holder so 
+      //  we can look for the next one.
+      sqlToHack = sqlToHack.substring(parameterPosition+1);
+    }
+
+    if (unsetParams) {
+      throw new SQLException("There are unset parameters in the query");
+    }
+
+    if (nextValidParameterPosition(sqlToHack) > 0) {
+      // more placeholders than parameters - should not happen
+      throw new SQLException("More placeholders exist than parameters have been set");
     }
    
     //  append anything left of the hacked up SQL 
-    sqlToConstruct.append(sqlToHack);
+    if (sqlToConstruct.length() > 0) {
+      sqlToConstruct.append(sqlToHack);
 
-    //  return the constructed sql
-    return sqlToConstruct.toString();
+      //  return the constructed sql
+      return sqlToConstruct.toString();
+    }
+    return sql;
   }
 
   /**
